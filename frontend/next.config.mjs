@@ -10,6 +10,12 @@ const nextConfig = {
       },
     ],
   },
+  // Prevent Vercel from processing large request bodies
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '10mb',
+    },
+  },
 };
 
 export default nextConfig;

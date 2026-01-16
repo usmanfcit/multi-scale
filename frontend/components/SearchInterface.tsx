@@ -74,12 +74,26 @@ export function SearchInterface() {
       const dims = await getImageDimensions(file);
 
       // Preprocess if needed (resize large images)
+      // Always resize images larger than 1920px to prevent buffer issues
       let processedFile = file;
       if (dims.width > 1920 || dims.height > 1920) {
         setError(null);
         setDetectionLoading(true);
-        processedFile = await preprocessImage(file, 1920, 0.9);
-        setDetectionLoading(false);
+        try {
+          processedFile = await preprocessImage(file, 1920, 0.85); // Lower quality for smaller file size
+          setDetectionLoading(false);
+        } catch (preprocessError) {
+          setDetectionLoading(false);
+          setError(`Failed to resize image: ${preprocessError instanceof Error ? preprocessError.message : 'Unknown error'}`);
+          return;
+        }
+      }
+      
+      // Additional safety check: if file is still too large after processing, reject it
+      const maxSizeBytes = 10 * 1024 * 1024; // 10MB
+      if (processedFile.size > maxSizeBytes) {
+        setError(`Image is too large (${(processedFile.size / (1024 * 1024)).toFixed(1)}MB). Please use a smaller image.`);
+        return;
       }
 
       setImage(processedFile);
