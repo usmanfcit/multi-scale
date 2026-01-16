@@ -41,9 +41,9 @@ SAM2_MODEL_PATH=D:\image_image_search\backend\app\models\sam2.1_l.pt
 # ====================================
 # IMAGE VALIDATION SETTINGS
 # ====================================
-IMAGE_MIN_DIMENSION=100
+IMAGE_MIN_DIMENSION=600
 IMAGE_MAX_DIMENSION=4096
-IMAGE_MAX_SIZE_MB=10
+IMAGE_MAX_SIZE_MB=15
 
 # ====================================
 # IMAGE STORAGE DIRECTORIES

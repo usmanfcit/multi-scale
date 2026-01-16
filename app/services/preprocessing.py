@@ -36,6 +36,150 @@ class PreprocessingService:
             raise ValueError("Invalid bbox after clamping")
         return BBox(x1=x1, y1=y1, x2=x2, y2=y2)
 
+    def crop_base(self, img: Image.Image, bbox: BBox) -> tuple[dict[str, Image.Image], dict[str, BBox]]:
+        """
+        Generate base crops (tight, medium, full) without rotations.
+        Returns crops and their corresponding bboxes for mask extraction.
+        
+        This method is used to separate base crop generation from rotation augmentation,
+        allowing masks to be applied before rotations are generated.
+        
+        Features:
+        - Minimum crop size enforcement (300px) to prevent quality loss from upscaling
+        - Adaptive padding based on object size (smaller objects get more context)
+        - Smart boundary handling when expanding crops
+        
+        Args:
+            img: Input image
+            bbox: Bounding box for object
+            
+        Returns:
+            Tuple of (crops_dict, bboxes_dict) where:
+            - crops_dict: {"tight": crop, "medium": crop, "full": crop}
+            - bboxes_dict: {"tight": bbox, "medium": bbox, "full": bbox}
+        """
+        w, h = img.size
+        
+        # Calculate object dimensions
+        obj_w = bbox.x2 - bbox.x1
+        obj_h = bbox.y2 - bbox.y1
+        obj_size = max(obj_w, obj_h)
+        
+        # MINIMUM CROP SIZE: Ensure crops are large enough for quality embeddings
+        # Prevents extreme upscaling (e.g., 80px → 512px) which causes blurry features
+        min_crop_dim = 300  # Minimum dimension in pixels
+        
+        # Tight crop: exact bbox OR expanded to minimum size
+        if obj_size < min_crop_dim:
+            # Small object - expand bbox to meet minimum while centering object
+            expansion_needed = min_crop_dim - obj_size
+            pad_x = expansion_needed // 2
+            pad_y = expansion_needed // 2
+            
+            tx1 = max(0, bbox.x1 - pad_x)
+            ty1 = max(0, bbox.y1 - pad_y)
+            tx2 = min(w, bbox.x2 + pad_x)
+            ty2 = min(h, bbox.y2 + pad_y)
+            
+            # If we hit image boundaries, expand the other side to maintain minimum size
+            if tx2 - tx1 < min_crop_dim and tx2 < w:
+                tx2 = min(w, tx1 + min_crop_dim)
+            if tx2 - tx1 < min_crop_dim and tx1 > 0:
+                tx1 = max(0, tx2 - min_crop_dim)
+            if ty2 - ty1 < min_crop_dim and ty2 < h:
+                ty2 = min(h, ty1 + min_crop_dim)
+            if ty2 - ty1 < min_crop_dim and ty1 > 0:
+                ty1 = max(0, ty2 - min_crop_dim)
+            
+            tight_bbox = BBox(x1=tx1, y1=ty1, x2=tx2, y2=ty2)
+            tight_crop = img.crop((tx1, ty1, tx2, ty2))
+            logger.info(
+                f"Small object detected ({obj_size:.0f}px), expanded tight crop to "
+                f"{tx2-tx1:.0f}×{ty2-ty1:.0f}px (prevents upscaling quality loss)"
+            )
+        else:
+            # Normal sized object - use exact bbox
+            tight_crop = img.crop((bbox.x1, bbox.y1, bbox.x2, bbox.y2))
+            tight_bbox = bbox
+        
+        # Medium crop: ADAPTIVE PADDING based on object size
+        # Smaller objects benefit from more surrounding context
+        tight_w = tight_bbox.x2 - tight_bbox.x1
+        tight_h = tight_bbox.y2 - tight_bbox.y1
+        tight_size = max(tight_w, tight_h)
+        
+        if tight_size < 150:
+            padding_ratio = 0.40  # 40% padding for very small objects
+        elif tight_size < 300:
+            padding_ratio = 0.20  # 20% padding for small-medium objects
+        else:
+            padding_ratio = 0.08  # 8% padding for larger objects
+        
+        pad = int(padding_ratio * tight_size)
+        mx1 = max(0, tight_bbox.x1 - pad)
+        my1 = max(0, tight_bbox.y1 - pad)
+        mx2 = min(w, tight_bbox.x2 + pad)
+        my2 = min(h, tight_bbox.y2 + pad)
+        medium_crop = img.crop((mx1, my1, mx2, my2))
+        medium_bbox = BBox(x1=mx1, y1=my1, x2=mx2, y2=my2)
+        
+        logger.debug(
+            f"Crop dimensions: tight={tight_w:.0f}×{tight_h:.0f}px, "
+            f"medium={mx2-mx1:.0f}×{my2-my1:.0f}px (padding={padding_ratio*100:.0f}%)"
+        )
+        
+        # Full crop: entire image
+        full_crop = img
+        full_bbox = BBox(x1=0, y1=0, x2=w, y2=h)
+        
+        crops = {
+            "tight": tight_crop,
+            "medium": medium_crop,
+            "full": full_crop
+        }
+        
+        bboxes = {
+            "tight": tight_bbox,
+            "medium": medium_bbox,
+            "full": full_bbox
+        }
+        
+        return crops, bboxes
+    
+    def add_rotated_crops(self, base_crops: dict[str, Image.Image]) -> dict[str, Image.Image]:
+        """
+        Add rotation-augmented crops from base crops.
+        
+        This generates 90°, 180°, 270° rotations from the provided base crops.
+        Use this AFTER masking to ensure rotations have the same masking as base crops.
+        
+        Args:
+            base_crops: Dictionary with "tight", "medium", "full" crops
+            
+        Returns:
+            Dictionary with base crops + rotated variants
+        """
+        crops = base_crops.copy()
+        
+        if self.enable_rotation_aug:
+            logger.debug("Adding rotation-augmented crops for angle invariance")
+            try:
+                for angle in [90, 180, 270]:
+                    # Rotate tight and medium crops (full stays as-is)
+                    if "tight" in base_crops:
+                        crops[f"tight_rot{angle}"] = base_crops["tight"].rotate(
+                            angle, expand=True, resample=Image.Resampling.BILINEAR
+                        )
+                    if "medium" in base_crops:
+                        crops[f"medium_rot{angle}"] = base_crops["medium"].rotate(
+                            angle, expand=True, resample=Image.Resampling.BILINEAR
+                        )
+                logger.debug(f"Added {len([k for k in crops if 'rot' in k])} rotated crops")
+            except Exception as e:
+                logger.warning(f"Failed to generate rotated crops (non-critical): {e}")
+        
+        return crops
+
     def crop_multi(self, img: Image.Image, bbox: BBox) -> dict[str, Image.Image]:
         """
         Generate multiple crops for robust feature extraction.
@@ -56,8 +200,8 @@ class PreprocessingService:
         w, h = img.size
         tight = img.crop((bbox.x1, bbox.y1, bbox.x2, bbox.y2))
 
-        # Medium crop with 15% padding for context
-        pad = int(0.15 * max(bbox.x2 - bbox.x1, bbox.y2 - bbox.y1))
+        # Medium crop with 8% padding for context
+        pad = int(0.08 * max(bbox.x2 - bbox.x1, bbox.y2 - bbox.y1))
         mx1 = max(0, bbox.x1 - pad)
         my1 = max(0, bbox.y1 - pad)
         mx2 = min(w, bbox.x2 + pad)

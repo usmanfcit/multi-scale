@@ -32,22 +32,38 @@ class Settings(BaseSettings):
     enable_pinecone_rerank: bool = Field(default=False, alias="ENABLE_PINECONE_RERANK")
     pinecone_rerank_model: str = Field(default="bge-reranker-v2-m3", alias="PINECONE_RERANK_MODEL")
     
-    # RT-DETR Detection Model
+    # RT-DETR Detection Model (local - fallback)
     rtdetr_model_path: str = Field(
         default=r"D:\image_image_search\backend\app\models\rtdetr-x.pt",
         alias="RTDETR_MODEL_PATH"
     )
     
-    # SAM2.1 Segmentation Model (Ultralytics)
+    # SAM2.1 Segmentation Model (Ultralytics - fallback)
     sam2_model_path: str = Field(
         default=r"D:\image_image_search\backend\app\models\sam2.1_l.pt",
         alias="SAM2_MODEL_PATH"
     )
     
+    # RunPod RF-DETR API (primary detection + segmentation)
+    runpod_api_url: str = Field(
+        default="https://api.runpod.ai/v2/4wgmy3tiffyi2p/run",
+        alias="RUNPOD_API_URL"
+    )
+    runpod_status_url: str = Field(
+        default="https://api.runpod.ai/v2/4wgmy3tiffyi2p/status",
+        alias="RUNPOD_STATUS_URL"
+    )
+    runpod_api_key: str = Field(alias="RUNPOD_API_KEY")
+    runpod_confidence_threshold: float = Field(default=0.10, alias="RUNPOD_CONFIDENCE_THRESHOLD")
+    runpod_max_wait_seconds: int = Field(default=60, alias="RUNPOD_MAX_WAIT_SECONDS")
+    
+    # Detection mode: "runpod" or "local"
+    detection_mode: str = Field(default="runpod", alias="DETECTION_MODE")
+    
     # Image validation settings
-    image_min_dimension: int = Field(default=100, alias="IMAGE_MIN_DIMENSION")
+    image_min_dimension: int = Field(default=400, alias="IMAGE_MIN_DIMENSION")
     image_max_dimension: int = Field(default=4096, alias="IMAGE_MAX_DIMENSION")
-    image_max_size_mb: int = Field(default=10, alias="IMAGE_MAX_SIZE_MB")
+    image_max_size_mb: int = Field(default=15, alias="IMAGE_MAX_SIZE_MB")
     
     # Image storage directories
     catalog_images_dir: str = Field(default="images/catalog", alias="CATALOG_IMAGES_DIR")

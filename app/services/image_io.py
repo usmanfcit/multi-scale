@@ -29,9 +29,9 @@ class ImageIOService:
     """
     catalog_images_dir: Path = Path("images/catalog")
     search_images_dir: Path = Path("images/search")
-    min_dimension: int = 100
+    min_dimension: int = 500
     max_dimension: int = 4096
-    max_file_size_mb: int = 10
+    max_file_size_mb: int = 15
     
     def __post_init__(self):
         """Ensure image directories exist"""
