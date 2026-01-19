@@ -1,0 +1,25 @@
+# Ignore all Python/backend files - only build frontend
+app/
+*.py
+pyproject.toml
+requirements.txt
+uv.lock
+Dockerfile
+.env
+*.log
+images/
+data/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+ENV/
+env/
