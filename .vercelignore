@@ -1,24 +1,22 @@
-# Ignore all Python/backend files - only build frontend
+# Ignore Python backend - only deploy frontend
 app/
 *.py
 pyproject.toml
 requirements.txt
 uv.lock
-Dockerfile
-.env
-*.log
+*.pt
+*.pth
 images/
 data/
+*.log
+*.csv
+Dockerfile
+ingest.py
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
-*.so
-*.egg
-*.egg-info/
-dist/
-build/
 .venv/
 venv/
 ENV/
