@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { SearchResults } from "@/components/SearchResults";
 import { SearchHit } from "@/lib/api";
 import { Loader2 } from "lucide-react";
@@ -11,7 +11,7 @@ interface ResultsData {
   message?: string | null;
 }
 
-export default function ResultsPage() {
+function ResultsContent() {
   const searchParams = useSearchParams();
   const [results, setResults] = useState<ResultsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -75,3 +75,21 @@ export default function ResultsPage() {
   );
 }
 
+export default function ResultsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="container mx-auto px-4 py-12">
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="text-center">
+              <Loader2 className="w-12 h-12 animate-spin text-primary-600 mx-auto mb-4" />
+              <p className="text-neutral-600">Loading results...</p>
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <ResultsContent />
+    </Suspense>
+  );
+}
